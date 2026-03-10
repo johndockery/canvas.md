@@ -1,0 +1,350 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #FAFAF7;
+  --fg: #171614;
+  --muted: #8C8880;
+  --silver: #B5AFA6;
+  --border: #E9E5DF;
+  --accent: #C15D3A;
+  --accent-hover: #A84D2E;
+  --accent-light: #F5EDE8;
+  --surface: #f4f3f0;
+  --surface-hover: #eeedea;
+  --forest: #2D6E4A;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.03);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.06), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  --radius: 10px;
+  --transition: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  --font-display: "Source Serif 4", Georgia, serif;
+  --font-body: "Inter", -apple-system, sans-serif;
+  --font-section: "Inter Tight", "Inter", sans-serif;
+}
+
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Milkdown / ProseMirror editor styles */
+.milkdown-container .milkdown {
+  min-height: 300px;
+}
+
+.milkdown-container .ProseMirror {
+  padding: 1.5rem;
+  min-height: 300px;
+  font-size: 15px;
+  font-family: var(--font-body);
+  line-height: 1.7;
+  outline: none;
+  caret-color: var(--fg);
+}
+
+@media (max-width: 767px) {
+  .milkdown-container .ProseMirror {
+    padding: 1rem;
+  }
+}
+
+/* Placeholder */
+.milkdown-container .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted);
+  font-style: italic;
+  pointer-events: none;
+  height: 0;
+}
+
+.milkdown-container .ProseMirror[data-placeholder]:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  font-style: italic;
+  pointer-events: none;
+}
+
+/* Typography */
+.milkdown-container .ProseMirror h1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.2em;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+  margin: 1em 0 0.5em;
+}
+
+.milkdown-container .ProseMirror h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.6em;
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+  margin: 0.8em 0 0.4em;
+}
+
+.milkdown-container .ProseMirror h3 {
+  font-family: var(--font-section);
+  font-weight: 600;
+  font-size: 1.15em;
+  letter-spacing: -0.01em;
+  line-height: 1.4;
+  margin: 0.7em 0 0.35em;
+}
+
+.milkdown-container .ProseMirror h4 {
+  font-weight: 600;
+  font-size: 1.05em;
+  margin: 0.6em 0 0.3em;
+}
+
+.milkdown-container .ProseMirror h5 {
+  font-weight: 600;
+  font-size: 0.95em;
+  margin: 0.5em 0 0.25em;
+}
+
+.milkdown-container .ProseMirror h6 {
+  font-weight: 600;
+  font-size: 0.9em;
+  color: var(--muted);
+  margin: 0.5em 0 0.25em;
+}
+
+.milkdown-container .ProseMirror p {
+  margin: 0.5em 0;
+}
+
+.milkdown-container .ProseMirror strong {
+  font-weight: 700;
+}
+
+.milkdown-container .ProseMirror em {
+  font-style: italic;
+}
+
+.milkdown-container .ProseMirror s {
+  text-decoration: line-through;
+  color: var(--muted);
+}
+
+.milkdown-container .ProseMirror a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.milkdown-container .ProseMirror a:hover {
+  color: var(--accent-hover);
+}
+
+/* Lists */
+.milkdown-container .ProseMirror ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.milkdown-container .ProseMirror ol {
+  list-style-type: decimal;
+  padding-left: 1.5em;
+  margin: 0.5em 0;
+}
+
+.milkdown-container .ProseMirror li {
+  margin: 0.15em 0;
+}
+
+.milkdown-container .ProseMirror li > p {
+  margin: 0;
+}
+
+/* Task lists (GFM) */
+.milkdown-container .ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 0;
+}
+
+.milkdown-container .ProseMirror li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+}
+
+/* Blockquote */
+.milkdown-container .ProseMirror blockquote {
+  border-left: 3px solid var(--border);
+  padding-left: 1em;
+  margin: 0.5em 0;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* Inline code */
+.milkdown-container .ProseMirror code {
+  font-family: "SF Mono", "Fira Code", Menlo, monospace;
+  font-size: 0.875em;
+  background: var(--surface);
+  padding: 0.15em 0.35em;
+  border-radius: 3px;
+}
+
+/* Code blocks */
+.milkdown-container .ProseMirror pre {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1em;
+  margin: 0.75em 0;
+  overflow-x: auto;
+}
+
+.milkdown-container .ProseMirror pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+/* Horizontal rule */
+.milkdown-container .ProseMirror hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 1.5em 0;
+}
+
+/* Tables */
+.milkdown-container .ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.75em 0;
+}
+
+.milkdown-container .ProseMirror th,
+.milkdown-container .ProseMirror td {
+  border: 1px solid var(--border);
+  padding: 0.5em 0.75em;
+  text-align: left;
+}
+
+.milkdown-container .ProseMirror th {
+  background: var(--surface);
+  font-weight: 600;
+}
+
+/* Images */
+.milkdown-container .ProseMirror img {
+  max-width: 100%;
+  border-radius: 8px;
+  margin: 0.5em 0;
+}
+
+/* Selection */
+.milkdown-container .ProseMirror ::selection {
+  background: rgba(193, 93, 58, 0.2);
+}
+
+/* Collaboration cursor styles */
+.yRemoteSelection {
+  background-color: rgba(193, 93, 58, 0.2);
+}
+
+.yRemoteSelectionHead {
+  border-left: 2px solid var(--accent);
+  position: relative;
+}
+
+/* Comment highlight */
+.cm-comment-highlight {
+  background: rgba(210, 160, 110, 0.18);
+  border-bottom: 2px solid rgba(196, 112, 63, 0.35);
+  border-radius: 2px;
+  transition: background var(--transition);
+}
+
+.cm-comment-highlight:hover {
+  background: rgba(210, 160, 110, 0.3);
+}
+
+/* Edit action cards in comments sidebar */
+.edit-action-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: var(--bg);
+  transition: background var(--transition);
+}
+
+.edit-action-card:hover {
+  background: var(--surface-hover);
+}
+
+.edit-action-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg);
+  line-height: 1.3;
+}
+
+.edit-action-description {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.4;
+  margin-top: 2px;
+}
+
+.edit-action-undo-btn {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.edit-action-undo-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--muted);
+}
+
+.edit-action-undone-label {
+  font-size: 12px;
+  color: var(--muted);
+  font-style: italic;
+  white-space: nowrap;
+}
