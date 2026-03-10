@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 
-const API_URL = process.env.CANVAS_API_URL || "https://canvas-566290227532.us-central1.run.app";
+const API_URL = process.env.CANVAS_API_URL || "http://localhost:1235";
 
 async function api(path: string, options?: RequestInit) {
   const headers: Record<string, string> = {
