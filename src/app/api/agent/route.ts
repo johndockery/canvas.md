@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { auth } from "@/lib/auth";
 import { GITHUB_TOOLS, runAgentLoop } from "@/lib/github-tools";
 
 const CANVAS_API =
@@ -14,36 +13,12 @@ export async function POST(req: NextRequest) {
     const { documentText, commentText, userName, context, messages: chatMessages, stream: streamRequested } =
       await req.json();
 
-    // Resolve Anthropic API key: user's stored key → env var → error
-    let apiKey: string | null = null;
+    // Resolve Anthropic API key from the server environment.
+    const apiKey = process.env.ANTHROPIC_API_KEY || null;
     const cookieHeader = req.headers.get("cookie") || "";
-
-    // 1. Try user's stored credential
-    const session = await auth();
-    if (session?.user?.email) {
-      try {
-        const credRes = await fetch(
-          `${CANVAS_API}/api/canvas/credentials/anthropic/key`,
-          { headers: { Cookie: cookieHeader } }
-        );
-        if (credRes.ok) {
-          const { apiKey: userKey } = await credRes.json();
-          if (userKey) apiKey = userKey;
-        }
-      } catch {
-        // Fall through to env var
-      }
-    }
-
-    // 2. Fallback to environment variable
-    if (!apiKey && process.env.ANTHROPIC_API_KEY) {
-      apiKey = process.env.ANTHROPIC_API_KEY;
-    }
-
-    // 3. No key available
     if (!apiKey) {
       return NextResponse.json(
-        { error: "No Anthropic API key configured. Add one in Settings > Integrations." },
+        { error: "No Anthropic API key configured. Set ANTHROPIC_API_KEY in the server environment." },
         { status: 500 }
       );
     }

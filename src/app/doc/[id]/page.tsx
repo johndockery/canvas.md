@@ -3,8 +3,6 @@
 import { use, useState, useEffect, useCallback, useRef } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSession, signIn } from "next-auth/react";
-import AuthButton from "@/components/AuthButton";
 import type { AnchorData, ApplyTextReplacement } from "@/components/Editor";
 
 const Editor = dynamic(() => import("@/components/Editor"), { ssr: false });
@@ -24,7 +22,6 @@ export default function DocPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { data: session, status } = useSession();
   const [sidePanel, setSidePanel] = useState<SidePanel>(() => {
     if (typeof window !== "undefined" && window.innerWidth >= 768) return "comments";
     return null;
@@ -102,7 +99,7 @@ export default function DocPage({
     setSidePanel((prev) => (prev === panel ? null : panel));
   }
 
-  if (status === "loading" || shareLoading) {
+  if (shareLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <span className="text-[var(--muted)]">Loading...</span>
@@ -110,35 +107,9 @@ export default function DocPage({
     );
   }
 
-  const isAnonymous = !session;
-  const canView = !isAnonymous || shareMode === "view" || shareMode === "edit";
-  const canEdit = !isAnonymous || shareMode === "edit";
-  const readOnly = !canEdit;
-
-  // Not signed in and doc is private → sign-in prompt
-  if (!canView) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="max-w-sm w-full p-8 text-center">
-          <h1 className="text-2xl font-bold mb-2">canvas</h1>
-          <p className="text-[var(--muted)] mb-8 text-sm">
-            Sign in to view and edit this document
-          </p>
-          <button
-            onClick={() => signIn("google")}
-            className="w-full px-4 py-3 rounded-xl bg-[var(--fg)] text-[var(--bg)] font-medium hover:opacity-85 transition-colors cursor-pointer"
-            style={{ boxShadow: "var(--shadow-md)" }}
-          >
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  const userName = session?.user?.name || "Anonymous";
-
-  const showSidebar = sidePanel && (!isAnonymous || (isAnonymous && canEdit && sidePanel === "comments"));
+  const userName = "Anonymous";
+  const readOnly = false;
+  const showSidebar = !!sidePanel;
 
   return (
     <div className="h-screen flex flex-col">
@@ -151,82 +122,60 @@ export default function DocPage({
             <span className="text-sm font-bold">canvas</span>
           </Link>
           <span className="text-[var(--border)]">/</span>
-          {!isAnonymous ? (
-            <input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={(e) => saveTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              className="text-sm font-semibold bg-transparent border-none outline-none text-[var(--fg)] min-w-0 flex-1 hover:bg-[var(--surface-hover)] focus:bg-[var(--surface)] px-2 py-1 rounded-lg transition-colors"
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={(e) => saveTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            className="text-sm font-semibold bg-transparent border-none outline-none text-[var(--fg)] min-w-0 flex-1 hover:bg-[var(--surface-hover)] focus:bg-[var(--surface)] px-2 py-1 rounded-lg transition-colors"
+          />
+          <span className="hidden md:flex items-center gap-1.5 text-xs text-[var(--muted)] shrink-0">
+            <span
+              className="w-1.5 h-1.5 rounded-full shrink-0"
+              style={{ backgroundColor: saveStatus === "saving" ? "var(--accent)" : "var(--forest)" }}
             />
-          ) : (
-            <span className="text-sm font-semibold px-2 py-1 truncate">{title}</span>
-          )}
-          {!isAnonymous && (
-            <span className="hidden md:flex items-center gap-1.5 text-xs text-[var(--muted)] shrink-0">
-              <span
-                className="w-1.5 h-1.5 rounded-full shrink-0"
-                style={{ backgroundColor: saveStatus === "saving" ? "var(--accent)" : "var(--forest)" }}
-              />
-              {saveStatus === "saving" ? "Saving..." : "Saved"}
-            </span>
-          )}
+            {saveStatus === "saving" ? "Saving..." : "Saved"}
+          </span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {!isAnonymous && (
-            <>
-              <div className="hidden md:flex items-center gap-1">
-                <button
-                  onClick={() => togglePanel("comments")}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
-                    sidePanel === "comments"
-                      ? "text-[var(--fg)] font-semibold bg-[var(--surface)]"
-                      : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-hover)]"
-                  }`}
-                  style={{ fontFamily: "var(--font-section)", fontSize: "14px" }}
-                >
-                  Comments
-                </button>
-                <button
-                  onClick={() => togglePanel("github")}
-                  className={`px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
-                    sidePanel === "github"
-                      ? "text-[var(--fg)] font-semibold bg-[var(--surface)]"
-                      : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-hover)]"
-                  }`}
-                  style={{ fontFamily: "var(--font-section)", fontSize: "14px" }}
-                >
-                  GitHub
-                </button>
-              </div>
-              {/* Mobile sidebar toggle */}
-              <button
-                onClick={() => togglePanel("comments")}
-                className="md:hidden p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors cursor-pointer text-[var(--muted)]"
-                aria-label="Toggle sidebar"
-              >
-                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
-                  <path d="M7.5 8.25h9m-9 3.75h9m-9 3.75h9M3.75 3.75h16.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Z" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-              </button>
-              <AuthButton />
-              <SharePopover docId={id} shareMode={shareMode!} onShareModeChange={setShareMode} />
-            </>
-          )}
-          {isAnonymous && (
-            <>
-              <AuthButton />
-              {shareMode === "view" && (
-                <span className="text-xs text-[var(--muted)] px-3 py-1.5 rounded-full bg-[var(--surface)] border border-[var(--border)]">
-                  View only
-                </span>
-              )}
-            </>
-          )}
+          <div className="hidden md:flex items-center gap-1">
+            <button
+              onClick={() => togglePanel("comments")}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                sidePanel === "comments"
+                  ? "text-[var(--fg)] font-semibold bg-[var(--surface)]"
+                  : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-hover)]"
+              }`}
+              style={{ fontFamily: "var(--font-section)", fontSize: "14px" }}
+            >
+              Comments
+            </button>
+            <button
+              onClick={() => togglePanel("github")}
+              className={`px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer ${
+                sidePanel === "github"
+                  ? "text-[var(--fg)] font-semibold bg-[var(--surface)]"
+                  : "text-[var(--muted)] hover:text-[var(--fg)] hover:bg-[var(--surface-hover)]"
+              }`}
+              style={{ fontFamily: "var(--font-section)", fontSize: "14px" }}
+            >
+              GitHub
+            </button>
+          </div>
+          <button
+            onClick={() => togglePanel("comments")}
+            className="md:hidden p-2 rounded-lg hover:bg-[var(--surface-hover)] transition-colors cursor-pointer text-[var(--muted)]"
+            aria-label="Toggle sidebar"
+          >
+            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24">
+              <path d="M7.5 8.25h9m-9 3.75h9m-9 3.75h9M3.75 3.75h16.5a1.5 1.5 0 0 1 1.5 1.5v13.5a1.5 1.5 0 0 1-1.5 1.5H3.75a1.5 1.5 0 0 1-1.5-1.5V5.25a1.5 1.5 0 0 1 1.5-1.5Z" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          <SharePopover docId={id} shareMode={shareMode!} onShareModeChange={setShareMode} />
         </div>
       </header>
 
@@ -237,7 +186,7 @@ export default function DocPage({
               docId={id}
               userName={userName}
               readOnly={readOnly}
-              onSelectionComment={canEdit ? handleSelectionComment : undefined}
+              onSelectionComment={handleSelectionComment}
               onEditorReady={handleEditorReady}
               onReplacementReady={handleReplacementReady}
             />

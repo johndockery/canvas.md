@@ -38,8 +38,6 @@ type View =
   | { type: "pick-file"; repo: Repo; path: string };
 
 export default function GitHubPanel({ docId }: GitHubPanelProps) {
-  const [connected, setConnected] = useState(false);
-  const [githubUsername, setGithubUsername] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -59,26 +57,6 @@ export default function GitHubPanel({ docId }: GitHubPanelProps) {
 
   const [view, setView] = useState<View>({ type: "main" });
 
-  // Check connection status
-  const checkStatus = useCallback(async () => {
-    try {
-      const res = await fetch("/api/canvas/github/status");
-      if (res.ok) {
-        const data = await res.json();
-        setConnected(data.connected);
-        setGithubUsername(data.github_username);
-      }
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    checkStatus();
-  }, [checkStatus]);
-
   // Load file link info
   const loadFileLink = useCallback(async () => {
     try {
@@ -93,8 +71,8 @@ export default function GitHubPanel({ docId }: GitHubPanelProps) {
   }, [docId]);
 
   useEffect(() => {
-    if (connected) loadFileLink();
-  }, [connected, loadFileLink]);
+    loadFileLink().finally(() => setLoading(false));
+  }, [loadFileLink]);
 
   async function loadAllRepos() {
     setLoading(true);
@@ -205,38 +183,9 @@ export default function GitHubPanel({ docId }: GitHubPanelProps) {
     }
   }
 
-  function connectGitHub() {
-    window.location.href = "/api/canvas/github/auth";
-  }
-
-  async function disconnectGitHub() {
-    await fetch("/api/canvas/github/disconnect", { method: "DELETE" });
-    setConnected(false);
-    setGithubUsername(null);
-    setFileLink({ linked: false });
-  }
-
   if (loading && view.type === "main") {
     return (
       <div className="p-4 text-xs text-[var(--muted)] text-center">Loading...</div>
-    );
-  }
-
-  // --- Not connected ---
-  if (!connected) {
-    return (
-      <div className="p-4 space-y-4">
-        <h3 className="font-semibold text-sm">Connect GitHub</h3>
-        <p className="text-xs text-[var(--muted)]">
-          Connect your GitHub account to sync markdown files from your repo&apos;s /docs directory.
-        </p>
-        <button
-          onClick={connectGitHub}
-          className="w-full px-3 py-2 rounded-xl bg-[var(--fg)] text-[var(--bg)] text-sm font-medium hover:opacity-85 transition-colors cursor-pointer"
-        >
-          Connect GitHub
-        </button>
-      </div>
     );
   }
 
@@ -357,18 +306,13 @@ export default function GitHubPanel({ docId }: GitHubPanelProps) {
   // --- Main view ---
   return (
     <div className="flex flex-col h-full">
-      {/* Connection status */}
-      <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+      <div className="px-4 py-3 border-b border-[var(--border)]">
         <div>
           <h3 className="font-semibold text-sm">GitHub</h3>
-          <p className="text-xs text-[var(--muted)]">Connected as {githubUsername}</p>
+          <p className="text-xs text-[var(--muted)]">
+            Uses the server GitHub token configured in the environment.
+          </p>
         </div>
-        <button
-          onClick={disconnectGitHub}
-          className="text-xs text-[var(--muted)] hover:text-red-500 cursor-pointer"
-        >
-          Disconnect
-        </button>
       </div>
 
       {error && (
@@ -446,6 +390,9 @@ export default function GitHubPanel({ docId }: GitHubPanelProps) {
             >
               Browse /docs files
             </button>
+            <p className="text-[10px] text-[var(--muted)] leading-relaxed">
+              Set `GITHUB_TOKEN` on the server if repository browsing or sync requests fail.
+            </p>
           </div>
         )}
       </div>

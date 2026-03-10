@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { useSession, signIn } from "next-auth/react";
-import AuthButton from "@/components/AuthButton";
 
 interface Doc {
   name: string;
@@ -173,7 +171,6 @@ function AIBadge() {
 
 export default function Home() {
   const router = useRouter();
-  const { data: session, status } = useSession();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
 
@@ -192,41 +189,8 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (session) fetchDocs();
-  }, [session, fetchDocs]);
-
-  // ---- Loading state ----
-
-  if (status === "loading") {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <span className="text-[var(--muted)]">Loading...</span>
-      </div>
-    );
-  }
-
-  // ---- Unauthenticated ----
-
-  if (!session) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="max-w-sm w-full p-8 text-center">
-          <h1 className="text-2xl font-bold mb-2">canvas</h1>
-          <p className="text-[var(--muted)] mb-8 text-sm leading-relaxed">
-            Collaborative documents with AI agents, real-time editing, and
-            GitHub integration.
-          </p>
-          <button
-            onClick={() => signIn("google")}
-            className="w-full px-4 py-3 rounded-xl bg-[var(--fg)] text-[var(--bg)] font-medium hover:opacity-85 transition-colors cursor-pointer"
-            style={{ boxShadow: "var(--shadow-md)" }}
-          >
-            Sign in with Google
-          </button>
-        </div>
-      </div>
-    );
-  }
+    fetchDocs();
+  }, [fetchDocs]);
 
   // ---- Helpers for doc creation / deletion ----
 
@@ -315,7 +279,7 @@ export default function Home() {
     return "Good evening";
   }
 
-  const firstName = (session?.user?.name || "").split(" ")[0] || "there";
+  const firstName = "there";
 
   const todayCount = docs.filter((d) => {
     const updated = new Date(d.updated_at);
@@ -327,16 +291,11 @@ export default function Home() {
     );
   }).length;
 
-  // ---- Authenticated layout ----
-
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="border-b border-[var(--border)] px-4 md:px-6 py-4 flex items-center justify-between">
         <span className="text-lg font-bold tracking-tight">canvas</span>
-        <div className="flex items-center gap-3">
-          <AuthButton />
-        </div>
       </header>
 
       <main className="max-w-[700px] mx-auto px-4 md:px-6 py-8">
