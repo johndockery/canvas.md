@@ -72,3 +72,60 @@ Contributions are welcome. Open an issue to discuss significant changes before s
 ## License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+## MCP Server
+
+Canvas includes a Model Context Protocol (MCP) server that lets AI assistants (Claude Code, Cursor, etc.) create, read, write, and manage documents programmatically.
+
+### Available tools
+
+| Tool | Description |
+| --- | --- |
+| `canvas_list_docs` | List all documents |
+| `canvas_create_doc` | Create a new document (optionally linked to a GitHub repo/file) |
+| `canvas_read_doc` | Read a document's markdown content |
+| `canvas_write_doc` | Replace a document's content |
+| `canvas_pull_doc` | Pull latest content (for syncing back to a local file) |
+| `canvas_push_doc` | Push a document to GitHub as a PR |
+| `canvas_update_title` | Update a document's title |
+| `canvas_delete_doc` | Delete a document |
+| `canvas_list_comments` | List comments on a document |
+| `canvas_add_comment` | Add a comment to a document |
+
+### Setup with Claude Code
+
+Add to your `.claude/settings.json` or project settings:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/canvas-editor/server/mcp.ts"],
+      "env": {
+        "CANVAS_API_URL": "http://localhost:1235"
+      }
+    }
+  }
+}
+```
+
+### Setup with Cursor
+
+Add to your `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "npx",
+      "args": ["tsx", "/path/to/canvas-editor/server/mcp.ts"],
+      "env": {
+        "CANVAS_API_URL": "http://localhost:1235"
+      }
+    }
+  }
+}
+```
+
+The MCP server connects to the Canvas API over HTTP. Make sure the Canvas dev server is running (`npm run dev`) before using MCP tools.
