@@ -4,26 +4,28 @@ Open source collaborative markdown editor with AI and real-time collaboration.
 
 ## Features
 
-- Real-time collaborative editing powered by a shared Yjs document model
-- AI chat and AI-assisted editing with Claude
-- GitHub sync and repository browsing from the editor
+- Real-time collaborative editing powered by Yjs CRDTs
+- AI chat and AI-assisted document editing with Claude
+- GitHub sync — link documents to repo files, pull updates, push as PRs
 - Built-in MCP server for tool-driven integrations
-- Inline comments for collaborative review workflows
+- Inline comments with @claude mentions for AI-powered review
 
 ## Tech Stack
 
-- Next.js 16 and React 19 for the web app
-- Yjs and Hocuspocus for collaborative editing and presence
-- Claude via the Anthropic SDK for AI features
-- PostgreSQL for persistence and server-side data
+- [Next.js](https://nextjs.org) 16 + React 19 — frontend
+- [Hono](https://hono.dev) — API server
+- [Yjs](https://yjs.dev) + [Hocuspocus](https://tiptap.dev/hocuspocus) — real-time collaboration
+- [Anthropic SDK](https://docs.anthropic.com) — AI chat and editing
+- [PostgreSQL](https://www.postgresql.org) — persistence
+- [MCP](https://modelcontextprotocol.io) — tool protocol for AI assistants
 
 ## Quick Start
 
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-org/canvas-md.git
-cd canvas-md
+git clone https://github.com/johndockery/canvas.md.git
+cd canvas.md
 ```
 
 2. Install dependencies:
@@ -32,50 +34,69 @@ cd canvas-md
 npm install
 ```
 
-3. Create a local Postgres database and update your connection string.
+3. Create a local Postgres database:
 
-4. Copy the example environment file and fill in the required values:
+```bash
+createdb canvas
+```
+
+4. Copy the example environment file and fill in your values:
 
 ```bash
 cp .env.local.example .env.local
 ```
 
-5. Start the app and collaboration server:
+At minimum, set `DATABASE_URL` and `ANTHROPIC_API_KEY`. The defaults work for everything else in local dev.
+
+5. Start the dev server:
 
 ```bash
 npm run dev
 ```
 
-6. Open `http://localhost:3000`.
+6. Open [http://localhost:3000](http://localhost:3000).
 
 ## Environment Variables
 
-| Variable | Required | Description | Example |
+| Variable | Required | Description | Default |
 | --- | --- | --- | --- |
-| `ANTHROPIC_API_KEY` | Yes | API key for Claude-powered chat and editing. | `sk-ant-...` |
-| `NEXT_PUBLIC_COLLAB_URL` | Yes | Public WebSocket URL for the collaboration server. | `ws://localhost:1234` |
-| `DATABASE_URL` | Yes | PostgreSQL connection string for app and server data. | `postgresql://postgres:postgres@localhost:5432/canvas` |
-| `CANVAS_PUBLIC_URL` | Yes | Public base URL for the Next.js app. | `http://localhost:3000` |
-| `PORT` | Yes | Port for the collaboration/MCP server process. | `1234` |
-| `GITHUB_TOKEN` | No | Optional server-side GitHub token for repository integration. | `github_pat_...` |
+| `DATABASE_URL` | Yes | PostgreSQL connection string | — |
+| `ANTHROPIC_API_KEY` | Yes | API key for Claude-powered chat and editing | — |
+| `NEXT_PUBLIC_COLLAB_URL` | No | WebSocket URL for the collaboration server | `ws://localhost:1234` |
+| `CANVAS_PUBLIC_URL` | No | Public base URL for the web app | `http://localhost:3000` |
+| `PORT` | No | Port for the collaboration server | `1234` |
+| `GITHUB_TOKEN` | No | GitHub token for repository integration | — |
 
 ## Architecture
 
-The app is split into two main runtime surfaces. The Next.js application in `src/` renders the editor UI, AI workflows, comments, and GitHub-facing features. The collaboration server in `server/` runs the shared document backend, persistence layer, and MCP endpoints used by external tools and automations.
+```
+┌─────────────────────────────────────────────┐
+│  Next.js (port 3000)                        │
+│  Editor UI, AI routes, comments, GitHub UI  │
+├─────────────────────────────────────────────┤
+│  Hono API (port 1235)         Hocuspocus    │
+│  REST endpoints for           WebSocket     │
+│  docs, comments, chat,        collab server │
+│  GitHub proxy                 (port 1234)   │
+├─────────────────────────────────────────────┤
+│  PostgreSQL                                 │
+│  Documents, comments, chat, GitHub links    │
+└─────────────────────────────────────────────┘
+```
 
-Yjs provides the shared document model, while Hocuspocus handles real-time sync and presence over WebSockets. PostgreSQL stores durable state. Anthropic powers chat and edit flows. GitHub integration is handled server-side so the client can browse and sync repository content without embedding Git logic in the frontend.
+**`server/routes.ts`** — Hono app with all API routes (documents, comments, chat, GitHub sync). Shared by both dev and production servers.
 
-## Contributing
+**`server/index.ts`** — Dev server. Runs Hocuspocus on port 1234 and the Hono API on port 1235.
 
-Contributions are welcome. Open an issue to discuss significant changes before starting work, keep pull requests focused, and include tests or verification notes for behavior changes when possible.
+**`server/production.ts`** — Production server. Runs everything (Next.js, Hono API, Hocuspocus, MCP) on a single port for environments like Cloud Run.
 
-## License
+**`server/mcp.ts`** — MCP server exposing document tools. Runs via stdio for local AI assistants or via StreamableHTTP in production.
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE).
+**`server/schema.sql`** — Database schema. Applied automatically on startup.
 
 ## MCP Server
 
-Canvas includes a Model Context Protocol (MCP) server that lets AI assistants (Claude Code, Cursor, etc.) create, read, write, and manage documents programmatically.
+canvas.md includes a [Model Context Protocol](https://modelcontextprotocol.io) server that lets AI assistants create, read, write, and manage documents programmatically.
 
 ### Available tools
 
@@ -101,7 +122,7 @@ Add to your `.claude/settings.json` or project settings:
   "mcpServers": {
     "canvas": {
       "command": "npx",
-      "args": ["tsx", "/path/to/canvas-md/server/mcp.ts"],
+      "args": ["tsx", "/path/to/canvas.md/server/mcp.ts"],
       "env": {
         "CANVAS_API_URL": "http://localhost:1235"
       }
@@ -119,7 +140,7 @@ Add to your `.cursor/mcp.json`:
   "mcpServers": {
     "canvas": {
       "command": "npx",
-      "args": ["tsx", "/path/to/canvas-md/server/mcp.ts"],
+      "args": ["tsx", "/path/to/canvas.md/server/mcp.ts"],
       "env": {
         "CANVAS_API_URL": "http://localhost:1235"
       }
@@ -128,4 +149,12 @@ Add to your `.cursor/mcp.json`:
 }
 ```
 
-The MCP server connects to the Canvas API over HTTP. Make sure the Canvas dev server is running (`npm run dev`) before using MCP tools.
+Make sure the canvas.md dev server is running (`npm run dev`) before using MCP tools.
+
+## Contributing
+
+Contributions are welcome. Open an issue to discuss significant changes before starting work, keep pull requests focused, and include tests or verification notes for behavior changes when possible.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
