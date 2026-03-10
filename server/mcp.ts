@@ -3,16 +3,12 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 
 const API_URL = process.env.CANVAS_API_URL || "https://canvas-566290227532.us-central1.run.app";
-const API_KEY = process.env.CANVAS_API_KEY || "";
 
 async function api(path: string, options?: RequestInit) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...options?.headers as Record<string, string>,
   };
-  if (API_KEY) {
-    headers["Authorization"] = `Bearer ${API_KEY}`;
-  }
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -123,8 +119,8 @@ server.tool(
     });
     if (data.error) {
       let guidance = `Error: ${data.error}`;
-      if (data.error.includes("Unauthorized") || data.error.includes("GitHub")) {
-        guidance += "\n\nHint: Make sure GitHub is connected in Canvas Settings > GitHub.";
+      if (data.error.includes("GitHub")) {
+        guidance += "\n\nHint: Set GITHUB_TOKEN on the server to enable GitHub operations.";
       }
       if (data.error.includes("No file linked") || data.error.includes("not linked") || data.error.includes("Not found")) {
         guidance += "\n\nHint: Create the doc with repo and filePath params to enable push, or link it manually in Canvas.";

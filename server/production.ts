@@ -25,54 +25,22 @@ import {
   addComment,
   getComments,
   deleteComments,
-  getGitHubConnection,
-  upsertGitHubConnection,
-  deleteGitHubConnection,
   getDocGitHubLinks,
   linkDocToRepo,
   unlinkDocFromRepo,
   deleteDocGitHubLinks,
-  createApiKey,
-  listApiKeys,
-  deleteApiKey,
-  getApiKeyEmail,
-  updateApiKeyLastUsed,
-  upsertUserCredential,
-  getUserCredentialKey,
-  listUserCredentials,
-  deleteUserCredential,
   getDocFileLink,
   linkDocToFile,
   unlinkDocFile,
   updateFileSha,
-  listTeamMembers,
-  listTeamInvites,
-  createTeamInvite,
-  deleteTeamInvite,
-  removeTeamMember,
-  getUserGitHubRepos,
-  addUserGitHubRepo,
-  removeUserGitHubRepo,
   getChatMessages,
   addChatMessage,
   deleteChatMessages,
 } from "./db.js";
 import { markdownToYjs, yjsToMarkdown, yjsXmlFragmentToMarkdown } from "./markdown.js";
-import { getSessionEmail } from "./auth-helper.js";
 
 const PORT = parseInt(process.env.PORT || "8080", 10);
 const dev = process.env.NODE_ENV !== "production";
-
-/** Resolve public-facing origin from request headers. */
-function getPublicOrigin(req: http.IncomingMessage, url: URL): string {
-  const proto = (req.headers["x-forwarded-proto"] as string | undefined) || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers["host"];
-  if (host) return `${proto}://${host}`;
-  return url.origin;
-}
-
-const GITHUB_APP_CLIENT_ID = process.env.GITHUB_APP_CLIENT_ID || "";
-const GITHUB_APP_CLIENT_SECRET = process.env.GITHUB_APP_CLIENT_SECRET || "";
 
 // --- Hocuspocus ---
 const hocuspocus = new HocuspocusServer({
@@ -129,18 +97,15 @@ async function githubFetch(path: string, token: string, options?: RequestInit) {
   return res.json();
 }
 
-async function getGitHubToken(req: http.IncomingMessage): Promise<string | null> {
-  const email = await getAuthedEmail(req);
-  if (!email) return null;
-  const conn = await getGitHubConnection(email);
-  return conn?.access_token ?? null;
+function getGitHubToken(): string | null {
+  return process.env.GITHUB_TOKEN || null;
 }
 
 // --- Yjs helpers ---
 
 // --- MCP over StreamableHTTP ---
 
-const CANVAS_PUBLIC_URL = process.env.CANVAS_PUBLIC_URL || "https://canvas.summerhealth.com";
+const CANVAS_PUBLIC_URL = process.env.CANVAS_PUBLIC_URL || "http://localhost:3000";
 
 function createMcpServer(): McpServer {
   const server = new McpServer(
@@ -265,16 +230,15 @@ After the team has reviewed and edited the document in Canvas (comments addresse
         return { content: [{ type: "text", text: "Error: Document is empty, nothing to push." }] };
       }
 
-      // Use the internal github-push route logic
-      // For MCP we need to go through the HTTP API since it handles GitHub auth
+      // Use the internal github-push route logic so MCP follows the same code path.
       const internalUrl = `http://localhost:${PORT}/api/canvas/docs/${docId}/github-push`;
       try {
         const res = await fetch(internalUrl, { method: "POST" });
         const result = await res.json() as Record<string, string>;
         if (!res.ok) {
           let guidance = `Error: ${result.error || res.statusText}`;
-          if (result.error?.includes("Unauthorized") || result.error?.includes("GitHub")) {
-            guidance += "\n\nHint: Make sure GitHub is connected in Canvas Settings > GitHub.";
+          if (result.error?.includes("GitHub")) {
+            guidance += "\n\nHint: Set GITHUB_TOKEN on the server to enable GitHub operations.";
           }
           return { content: [{ type: "text", text: guidance }] };
         }
@@ -480,31 +444,6 @@ function handleMcp(req: http.IncomingMessage, res: http.ServerResponse): boolean
   return true;
 }
 
-// --- Unified auth ---
-
-/** Try session cookie first, then Authorization: Bearer <api-key> header. */
-async function getAuthedEmail(req: http.IncomingMessage): Promise<string | null> {
-  // 1. Session cookie
-  const sessionEmail = await getSessionEmail(req);
-  if (sessionEmail) return sessionEmail;
-
-  // 2. API key via Bearer token
-  const authHeader = req.headers.authorization || "";
-  if (authHeader.startsWith("Bearer ")) {
-    const key = authHeader.slice(7);
-    if (key) {
-      const email = await getApiKeyEmail(key);
-      if (email) {
-        // Fire-and-forget: update last_used_at
-        updateApiKeyLastUsed(key).catch(() => {});
-      }
-      return email;
-    }
-  }
-
-  return null;
-}
-
 // --- Router helper ---
 
 type RouteHandler = (
@@ -543,11 +482,7 @@ route("GET", "/api/canvas/docs", async ({ json }) => {
   json({ docs: await listDocs() });
 });
 
-// Authed — create doc
-route("POST", "/api/canvas/docs", async ({ req, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("POST", "/api/canvas/docs", async ({ json, readBody }) => {
   const body = await readBody();
   const name = (body.name as string) || crypto.randomUUID();
   const title = (body.title as string) || "Untitled";
@@ -567,7 +502,6 @@ route("POST", "/api/canvas/docs", async ({ req, json, readBody }) => {
   const filePath = body.filePath as string | undefined;
   if (repoFullName && filePath) {
     await linkDocToFile(name, repoFullName, filePath, null);
-    await addUserGitHubRepo(email, repoFullName, null, null);
   }
 
   json({ name, title }, 201);
@@ -580,11 +514,7 @@ route("GET", "/api/canvas/docs/:id", async ({ params, json }) => {
   json(meta);
 });
 
-// Authed — update doc title
-route("PUT", "/api/canvas/docs/:id", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("PUT", "/api/canvas/docs/:id", async ({ params, json, readBody }) => {
   const body = await readBody();
   if (!body.title || typeof body.title !== "string") {
     return json({ error: "Missing required field: title" }, 400);
@@ -593,11 +523,7 @@ route("PUT", "/api/canvas/docs/:id", async ({ req, params, json, readBody }) => 
   json({ ok: true });
 });
 
-// Authed — delete doc (cascade: comments + github links)
-route("DELETE", "/api/canvas/docs/:id", async ({ req, params, json }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("DELETE", "/api/canvas/docs/:id", async ({ params, json }) => {
   const docName = params[0];
   await deleteDoc(docName);
   await deleteComments(docName);
@@ -616,11 +542,7 @@ route("GET", "/api/canvas/docs/:id/sharing", async ({ params, json }) => {
   json({ mode });
 });
 
-// Authed — set share mode
-route("PUT", "/api/canvas/docs/:id/sharing", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("PUT", "/api/canvas/docs/:id/sharing", async ({ params, json, readBody }) => {
   const body = await readBody();
   const mode = body.mode as string;
   if (!mode || !["none", "view", "edit"].includes(mode)) {
@@ -653,11 +575,7 @@ route("GET", "/api/canvas/docs/:id/content", async ({ params, json }) => {
   json({ content: markdown });
 });
 
-// Authed — write content from markdown
-route("PUT", "/api/canvas/docs/:id/content", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("PUT", "/api/canvas/docs/:id/content", async ({ params, json, readBody }) => {
   const docName = params[0];
   const body = await readBody();
   const markdown = (body.content as string) || "";
@@ -679,11 +597,7 @@ route("GET", "/api/canvas/docs/:id/comments", async ({ params, json }) => {
   json({ comments: await getComments(params[0]) });
 });
 
-// Authed — add comment
-route("POST", "/api/canvas/docs/:id/comments", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("POST", "/api/canvas/docs/:id/comments", async ({ params, json, readBody }) => {
   const body = await readBody();
   if (!body.text || typeof body.text !== "string") {
     return json({ error: "Missing required field: text" }, 400);
@@ -713,11 +627,7 @@ route("GET", "/api/canvas/docs/:id/chat", async ({ params, json }) => {
   json({ messages: await getChatMessages(params[0]) });
 });
 
-// Authed — add chat message
-route("POST", "/api/canvas/docs/:id/chat", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("POST", "/api/canvas/docs/:id/chat", async ({ params, json, readBody }) => {
   const body = await readBody();
   if (!body.id || !body.role || typeof body.content !== "string") {
     return json({ error: "Missing required fields: id, role, content" }, 400);
@@ -742,11 +652,7 @@ route("GET", "/api/canvas/docs/:id/github", async ({ params, json }) => {
   json({ links: await getDocGitHubLinks(params[0]) });
 });
 
-// Authed — link repo
-route("POST", "/api/canvas/docs/:id/github", async ({ req, params, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("POST", "/api/canvas/docs/:id/github", async ({ params, json, readBody }) => {
   const body = await readBody();
   if (!body.repoFullName || typeof body.repoFullName !== "string") {
     return json({ error: "Missing required field: repoFullName" }, 400);
@@ -755,188 +661,8 @@ route("POST", "/api/canvas/docs/:id/github", async ({ req, params, json, readBod
   json({ ok: true }, 201);
 });
 
-// Authed — unlink repo
-route("DELETE", "/api/canvas/docs/:id/github/:owner/:repo", async ({ req, params, json }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
+route("DELETE", "/api/canvas/docs/:id/github/:owner/:repo", async ({ params, json }) => {
   await unlinkDocFromRepo(params[0], `${params[1]}/${params[2]}`);
-  json({ ok: true });
-});
-
-// ============================================================
-// API Key management (session auth only)
-// ============================================================
-
-// Session-authed — create API key
-route("POST", "/api/canvas/api-keys", async ({ req, json, readBody }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const body = await readBody();
-  const label = (body.label as string) || null;
-  const key = crypto.randomUUID();
-  await createApiKey(key, email, label);
-  json({ key, label }, 201);
-});
-
-// Session-authed — list API keys
-route("GET", "/api/canvas/api-keys", async ({ req, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  json({ keys: await listApiKeys(email) });
-});
-
-// Session-authed — delete API key
-route("DELETE", "/api/canvas/api-keys/:key", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const deleted = await deleteApiKey(params[0], email);
-  if (!deleted) return json({ error: "Key not found or not owned by you" }, 404);
-  json({ ok: true });
-});
-
-// ============================================================
-// User credentials (per-user AI provider keys)
-// ============================================================
-
-// Session-authed — list credentials
-route("GET", "/api/canvas/credentials", async ({ req, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const creds = await listUserCredentials(email);
-  json({
-    credentials: creds.map((c) => ({
-      provider: c.provider,
-      label: c.label,
-      connected: true,
-      created_at: c.created_at,
-    })),
-  });
-});
-
-// Session-authed — upsert credential
-route("PUT", "/api/canvas/credentials/:provider", async ({ req, params, json, readBody }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const body = await readBody();
-  if (!body.apiKey || typeof body.apiKey !== "string") {
-    return json({ error: "Missing required field: apiKey" }, 400);
-  }
-
-  const provider = params[0];
-  const label = (body.label as string) || null;
-  await upsertUserCredential(email, provider, body.apiKey, label);
-  json({ ok: true, provider });
-});
-
-// Session-authed — delete credential
-route("DELETE", "/api/canvas/credentials/:provider", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const deleted = await deleteUserCredential(email, params[0]);
-  if (!deleted) return json({ error: "Credential not found" }, 404);
-  json({ ok: true });
-});
-
-// Internal — get credential key (used by Next.js agent route)
-route("GET", "/api/canvas/credentials/:provider/key", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized — session required" }, 401);
-
-  const apiKey = await getUserCredentialKey(email, params[0]);
-  json({ apiKey });
-});
-
-// ============================================================
-// Team management
-// ============================================================
-
-route("GET", "/api/canvas/team", async ({ req, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
-  const [members, invites] = await Promise.all([
-    listTeamMembers(email),
-    listTeamInvites(email),
-  ]);
-  json({ members, invites });
-});
-
-route("POST", "/api/canvas/team/invite", async ({ req, json, readBody }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
-  const body = await readBody();
-  const inviteEmail = (body.email as string || "").trim().toLowerCase();
-  if (!inviteEmail || !inviteEmail.includes("@")) {
-    return json({ error: "Valid email required" }, 400);
-  }
-  if (inviteEmail === email) {
-    return json({ error: "Cannot invite yourself" }, 400);
-  }
-
-  const invite = await createTeamInvite(email, inviteEmail, (body.role as string) || "editor");
-  json({ invite });
-});
-
-route("DELETE", "/api/canvas/team/invite/:id", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
-  const deleted = await deleteTeamInvite(email, params[0]);
-  if (!deleted) return json({ error: "Invite not found" }, 404);
-  json({ ok: true });
-});
-
-route("DELETE", "/api/canvas/team/member/:memberEmail", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-
-  const removed = await removeTeamMember(email, decodeURIComponent(params[0]));
-  if (!removed) return json({ error: "Member not found" }, 404);
-  json({ ok: true });
-});
-
-// ============================================================
-// User GitHub repos (AI agent context)
-// ============================================================
-
-// Session-authed — list connected repos
-route("GET", "/api/canvas/github/user-repos", async ({ req, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const repos = await getUserGitHubRepos(email);
-  json({ repos });
-});
-
-// Authed — add a repo (supports API key for MCP access)
-route("POST", "/api/canvas/github/user-repos", async ({ req, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const body = await readBody();
-  const repoFullName = body.repoFullName as string;
-  if (!repoFullName) return json({ error: "Missing repoFullName" }, 400);
-  await addUserGitHubRepo(
-    email,
-    repoFullName,
-    (body.defaultBranch as string) || null,
-    (body.description as string) || null
-  );
-  json({ ok: true }, 201);
-});
-
-// Session-authed — remove a repo
-route("DELETE", "/api/canvas/github/user-repos/:owner/:repo", async ({ req, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const removed = await removeUserGitHubRepo(email, `${params[0]}/${params[1]}`);
-  if (!removed) return json({ error: "Repo not found" }, 404);
   json({ ok: true });
 });
 
@@ -944,17 +670,9 @@ route("DELETE", "/api/canvas/github/user-repos/:owner/:repo", async ({ req, para
 // GitHub browse proxy (for AI agent tools)
 // ============================================================
 
-// Session-authed — list directory contents
-route("GET", "/api/canvas/github/browse/:owner/:repo/tree", async ({ req, url, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
+route("GET", "/api/canvas/github/browse/:owner/:repo/tree", async ({ url, params, json }) => {
   const repoFullName = `${params[0]}/${params[1]}`;
-  // Validate repo is in user's connected list
-  const userRepos = await getUserGitHubRepos(email);
-  if (!userRepos.some((r: { repo_full_name: string }) => r.repo_full_name === repoFullName)) {
-    return json({ error: "Repo not in your connected repos" }, 403);
-  }
-  const ghToken = await getGitHubToken(req);
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const dirPath = url.searchParams.get("path") || "";
   try {
@@ -979,16 +697,9 @@ route("GET", "/api/canvas/github/browse/:owner/:repo/tree", async ({ req, url, p
   }
 });
 
-// Session-authed — read file content
-route("GET", "/api/canvas/github/browse/:owner/:repo/file", async ({ req, url, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
+route("GET", "/api/canvas/github/browse/:owner/:repo/file", async ({ url, params, json }) => {
   const repoFullName = `${params[0]}/${params[1]}`;
-  const userRepos = await getUserGitHubRepos(email);
-  if (!userRepos.some((r: { repo_full_name: string }) => r.repo_full_name === repoFullName)) {
-    return json({ error: "Repo not in your connected repos" }, 403);
-  }
-  const ghToken = await getGitHubToken(req);
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const filePath = url.searchParams.get("path") || "";
   if (!filePath) return json({ error: "Missing path parameter" }, 400);
@@ -1011,16 +722,9 @@ route("GET", "/api/canvas/github/browse/:owner/:repo/file", async ({ req, url, p
   }
 });
 
-// Session-authed — search code in repo
-route("GET", "/api/canvas/github/browse/:owner/:repo/search", async ({ req, url, params, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
+route("GET", "/api/canvas/github/browse/:owner/:repo/search", async ({ url, params, json }) => {
   const repoFullName = `${params[0]}/${params[1]}`;
-  const userRepos = await getUserGitHubRepos(email);
-  if (!userRepos.some((r: { repo_full_name: string }) => r.repo_full_name === repoFullName)) {
-    return json({ error: "Repo not in your connected repos" }, 403);
-  }
-  const ghToken = await getGitHubToken(req);
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const query = url.searchParams.get("q") || "";
   if (!query) return json({ error: "Missing q parameter" }, 400);
@@ -1041,96 +745,11 @@ route("GET", "/api/canvas/github/browse/:owner/:repo/search", async ({ req, url,
 });
 
 // ============================================================
-// GitHub OAuth flow
-// ============================================================
-
-// Open — redirect to GitHub OAuth
-route("GET", "/api/canvas/github/auth", async ({ req, url, res, json }) => {
-  if (!GITHUB_APP_CLIENT_ID) return json({ error: "GitHub App not configured" }, 500);
-  const state = crypto.randomUUID();
-  res.setHeader("Set-Cookie", `gh_oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600`);
-  const origin = getPublicOrigin(req, url);
-  const params = new URLSearchParams({
-    client_id: GITHUB_APP_CLIENT_ID,
-    redirect_uri: `${origin}/api/canvas/github/callback`,
-    scope: "repo",
-    state,
-  });
-  res.writeHead(302, { Location: `https://github.com/login/oauth/authorize?${params}` });
-  res.end();
-});
-
-// Open — GitHub OAuth callback
-route("GET", "/api/canvas/github/callback", async ({ req, url, res, json }) => {
-  const code = url.searchParams.get("code");
-  const state = url.searchParams.get("state");
-  const cookies = (req.headers.cookie || "").split(";").reduce((acc, c) => {
-    const [k, ...v] = c.trim().split("=");
-    if (k) acc[k] = v.join("=");
-    return acc;
-  }, {} as Record<string, string>);
-
-  if (!code || !state || cookies["gh_oauth_state"] !== state) {
-    res.writeHead(400, { "Content-Type": "text/html" });
-    res.end("<h3>Invalid OAuth state. Please try again.</h3>");
-    return;
-  }
-
-  const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
-    method: "POST",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify({
-      client_id: GITHUB_APP_CLIENT_ID,
-      client_secret: GITHUB_APP_CLIENT_SECRET,
-      code,
-    }),
-  });
-  const tokenData = await tokenRes.json() as { access_token?: string; error?: string };
-  if (!tokenData.access_token) {
-    res.writeHead(400, { "Content-Type": "text/html" });
-    res.end(`<h3>GitHub OAuth failed: ${tokenData.error || "unknown error"}</h3>`);
-    return;
-  }
-
-  const ghUser = await githubFetch("/user", tokenData.access_token);
-  const email = await getSessionEmail(req);
-  if (!email) {
-    res.writeHead(401, { "Content-Type": "text/html" });
-    res.end("<h3>Not logged in. Please sign in first.</h3>");
-    return;
-  }
-  await upsertGitHubConnection(email, ghUser.login, tokenData.access_token);
-
-  res.setHeader("Set-Cookie", "gh_oauth_state=; Path=/; Max-Age=0");
-  res.writeHead(302, { Location: "/" });
-  res.end();
-});
-
-// Open — check GitHub connection status
-route("GET", "/api/canvas/github/status", async ({ req, json }) => {
-  const email = await getSessionEmail(req);
-  if (!email) return json({ connected: false });
-  const conn = await getGitHubConnection(email);
-  json({
-    connected: !!conn,
-    github_username: conn?.github_username || null,
-  });
-});
-
-// Authed — disconnect GitHub
-route("DELETE", "/api/canvas/github/disconnect", async ({ req, json }) => {
-  const email = await getAuthedEmail(req);
-  if (email) await deleteGitHubConnection(email);
-  json({ ok: true });
-});
-
-// ============================================================
 // GitHub API proxy (read)
 // ============================================================
 
-// Authed — list user repos
-route("GET", "/api/canvas/github/repos", async ({ req, json }) => {
-  const ghToken = await getGitHubToken(req);
+route("GET", "/api/canvas/github/repos", async ({ json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const repos = await githubFetch("/user/repos?sort=updated&per_page=30", ghToken);
   json({
@@ -1147,9 +766,8 @@ route("GET", "/api/canvas/github/repos", async ({ req, json }) => {
   });
 });
 
-// Authed — get repo contents
-route("GET", "/api/canvas/github/repos/:owner/:repo/contents", async ({ req, url, params, json }) => {
-  const ghToken = await getGitHubToken(req);
+route("GET", "/api/canvas/github/repos/:owner/:repo/contents", async ({ url, params, json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const [owner, repo] = params;
   const filePath = url.searchParams.get("path") || "";
@@ -1179,9 +797,8 @@ route("GET", "/api/canvas/github/repos/:owner/:repo/contents", async ({ req, url
   });
 });
 
-// Authed — list branches
-route("GET", "/api/canvas/github/repos/:owner/:repo/branches", async ({ req, params, json }) => {
-  const ghToken = await getGitHubToken(req);
+route("GET", "/api/canvas/github/repos/:owner/:repo/branches", async ({ params, json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const [owner, repo] = params;
   const branches = await githubFetch(`/repos/${owner}/${repo}/branches?per_page=30`, ghToken);
@@ -1197,9 +814,8 @@ route("GET", "/api/canvas/github/repos/:owner/:repo/branches", async ({ req, par
 // GitHub /docs markdown sync
 // ============================================================
 
-// Authed — list .md files and subdirectories in /docs (or subpath)
-route("GET", "/api/canvas/github/repos/:owner/:repo/docs-files", async ({ req, url, params, json }) => {
-  const ghToken = await getGitHubToken(req);
+route("GET", "/api/canvas/github/repos/:owner/:repo/docs-files", async ({ url, params, json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
   const [owner, repo] = params;
   const subpath = url.searchParams.get("path") || "";
@@ -1213,14 +829,14 @@ route("GET", "/api/canvas/github/repos/:owner/:repo/docs-files", async ({ req, u
           return item.type === "file" && typeof item.name === "string" && (item.name as string).endsWith(".md");
         })
         .map((item: Record<string, unknown>) => ({
-          name: item.name,
-          path: item.path,
+          name: String(item.name),
+          path: String(item.path),
           type: item.type as "file" | "dir",
           sha: item.sha,
         }))
-        .sort((a: { type: string; name: string }, b: { type: string; name: string }) => {
+        .sort((a, b) => {
           if (a.type !== b.type) return a.type === "dir" ? -1 : 1;
-          return (a.name as string).localeCompare(b.name as string);
+          return a.name.localeCompare(b.name);
         });
       return json({ items, path: subpath });
     }
@@ -1230,11 +846,8 @@ route("GET", "/api/canvas/github/repos/:owner/:repo/docs-files", async ({ req, u
   }
 });
 
-// Authed — import .md file as new Canvas doc
-route("POST", "/api/canvas/github/docs-import", async ({ req, json, readBody }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const ghToken = await getGitHubToken(req);
+route("POST", "/api/canvas/github/docs-import", async ({ json, readBody }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
 
   const body = await readBody();
@@ -1282,11 +895,8 @@ route("GET", "/api/canvas/docs/:id/github-file", async ({ params, json }) => {
   });
 });
 
-// Authed — pull latest from GitHub into doc
-route("POST", "/api/canvas/docs/:id/github-pull", async ({ req, params, json }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const ghToken = await getGitHubToken(req);
+route("POST", "/api/canvas/docs/:id/github-pull", async ({ params, json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
 
   const docName = params[0];
@@ -1310,11 +920,8 @@ route("POST", "/api/canvas/docs/:id/github-pull", async ({ req, params, json }) 
   json({ ok: true, sha: fileData.sha });
 });
 
-// Authed — push doc to GitHub (creates branch + commit + PR)
-route("POST", "/api/canvas/docs/:id/github-push", async ({ req, params, json }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
-  const ghToken = await getGitHubToken(req);
+route("POST", "/api/canvas/docs/:id/github-push", async ({ params, json }) => {
+  const ghToken = getGitHubToken();
   if (!ghToken) return json({ error: "GitHub not connected" }, 401);
 
   const docName = params[0];
@@ -1393,7 +1000,7 @@ route("POST", "/api/canvas/docs/:id/github-push", async ({ req, params, json }) 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       title: commitMessage,
-      body: `Updated via [Canvas](${process.env.PUBLIC_URL || "https://canvas-566290227532.us-central1.run.app"})`,
+      body: `Updated via [Canvas](${CANVAS_PUBLIC_URL})`,
       head: branchName,
       base: defaultBranch,
     }),
@@ -1412,10 +1019,7 @@ route("POST", "/api/canvas/docs/:id/github-push", async ({ req, params, json }) 
   });
 });
 
-// Authed — unlink doc from file
-route("DELETE", "/api/canvas/docs/:id/github-file", async ({ req, params, json }) => {
-  const email = await getAuthedEmail(req);
-  if (!email) return json({ error: "Unauthorized" }, 401);
+route("DELETE", "/api/canvas/docs/:id/github-file", async ({ params, json }) => {
   await unlinkDocFile(params[0]);
   json({ ok: true });
 });
@@ -1433,7 +1037,7 @@ function handleApi(
   // CORS
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") {
     res.writeHead(204);
     res.end();
