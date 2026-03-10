@@ -119,7 +119,7 @@ export default function DocPage({
             href="/"
             className="text-[var(--muted)] hover:text-[var(--fg)] transition-colors shrink-0"
           >
-            <span className="text-sm font-bold">canvas</span>
+            <span className="text-sm font-bold">canvas.md</span>
           </Link>
           <span className="text-[var(--border)]">/</span>
           <input

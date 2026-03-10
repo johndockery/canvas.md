@@ -21,7 +21,7 @@ const interTight = Inter_Tight({
 });
 
 export const metadata: Metadata = {
-  title: "Canvas",
+  title: "canvas.md",
   description: "Collaborative markdown editor with AI agents",
 };
 

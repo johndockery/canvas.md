@@ -27,7 +27,7 @@ export function createMcpServer(options: CreateMcpServerOptions = {}) {
 
   const server = new McpServer(
     {
-      name: "canvas",
+      name: "canvas-md",
       version: "0.1.0",
     },
     {

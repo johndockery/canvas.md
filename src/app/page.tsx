@@ -295,7 +295,7 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Header */}
       <header className="border-b border-[var(--border)] px-4 md:px-6 py-4 flex items-center justify-between">
-        <span className="text-lg font-bold tracking-tight">canvas</span>
+        <span className="text-lg font-bold tracking-tight">canvas.md</span>
       </header>
 
       <main className="max-w-[700px] mx-auto px-4 md:px-6 py-8">

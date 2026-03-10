@@ -620,7 +620,7 @@ export function createRoutes(hocuspocus: HocuspocusLike) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: commitMessage,
-        body: `Updated via [Canvas](${process.env.CANVAS_PUBLIC_URL || "http://localhost:3000"})`,
+        body: `Updated via [canvas.md](${process.env.CANVAS_PUBLIC_URL || "http://localhost:3000"})`,
         head: branchName,
         base: defaultBranch,
       }),

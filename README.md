@@ -1,4 +1,4 @@
-# Canvas Editor
+# canvas.md
 
 Open source collaborative markdown editor with AI and real-time collaboration.
 
@@ -22,8 +22,8 @@ Open source collaborative markdown editor with AI and real-time collaboration.
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/your-org/canvas-editor.git
-cd canvas-editor
+git clone https://github.com/your-org/canvas-md.git
+cd canvas-md
 ```
 
 2. Install dependencies:
@@ -101,7 +101,7 @@ Add to your `.claude/settings.json` or project settings:
   "mcpServers": {
     "canvas": {
       "command": "npx",
-      "args": ["tsx", "/path/to/canvas-editor/server/mcp.ts"],
+      "args": ["tsx", "/path/to/canvas-md/server/mcp.ts"],
       "env": {
         "CANVAS_API_URL": "http://localhost:1235"
       }
@@ -119,7 +119,7 @@ Add to your `.cursor/mcp.json`:
   "mcpServers": {
     "canvas": {
       "command": "npx",
-      "args": ["tsx", "/path/to/canvas-editor/server/mcp.ts"],
+      "args": ["tsx", "/path/to/canvas-md/server/mcp.ts"],
       "env": {
         "CANVAS_API_URL": "http://localhost:1235"
       }
