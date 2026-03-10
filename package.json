@@ -1,7 +1,8 @@
 {
-  "name": "canvas",
+  "name": "canvas-editor",
   "version": "0.1.0",
   "private": true,
+  "description": "Open source collaborative markdown editor with AI and real-time collaboration",
   "scripts": {
     "dev": "concurrently \"next dev --port 3000\" \"tsx --env-file=.env.local server/index.ts\"",
     "dev:next": "next dev --port 3000",
@@ -20,12 +21,9 @@
     "@milkdown/plugin-collab": "^7.18.0",
     "@milkdown/react": "^7.18.0",
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "@supabase/ssr": "^0.8.0",
-    "@supabase/supabase-js": "^2.97.0",
     "@types/marked": "^5.0.2",
     "marked": "^17.0.3",
     "next": "^16.1.6",
-    "next-auth": "^5.0.0-beta.30",
     "pg": "^8.13.1",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
