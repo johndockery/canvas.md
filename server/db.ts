@@ -1,3 +1,4 @@
+import { readFileSync } from "fs";
 import pg from "pg";
 
 const pool = new pg.Pool({
@@ -5,66 +6,8 @@ const pool = new pg.Pool({
 });
 
 export async function initDb() {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS documents (
-      name TEXT PRIMARY KEY,
-      data BYTEA,
-      title TEXT DEFAULT 'Untitled',
-      share_mode TEXT DEFAULT 'none',
-      created_at TIMESTAMPTZ DEFAULT NOW(),
-      updated_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  // Add share_mode column if table already exists without it
-  await pool.query(`
-    ALTER TABLE documents ADD COLUMN IF NOT EXISTS share_mode TEXT DEFAULT 'none';
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS comments (
-      id TEXT PRIMARY KEY,
-      doc_name TEXT NOT NULL,
-      user_name TEXT NOT NULL,
-      text TEXT NOT NULL,
-      is_agent BOOLEAN DEFAULT FALSE,
-      anchor_quote TEXT,
-      anchor_context TEXT,
-      anchor_from INTEGER,
-      anchor_to INTEGER,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS doc_github_links (
-      doc_name TEXT NOT NULL,
-      repo_full_name TEXT NOT NULL,
-      default_branch TEXT,
-      linked_at TIMESTAMPTZ DEFAULT NOW(),
-      PRIMARY KEY (doc_name, repo_full_name)
-    );
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS doc_github_files (
-      doc_name TEXT PRIMARY KEY,
-      repo_full_name TEXT NOT NULL,
-      file_path TEXT NOT NULL,
-      file_sha TEXT,
-      last_synced_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
-  // Add edit_actions column to comments if it doesn't exist
-  await pool.query(`
-    ALTER TABLE comments ADD COLUMN IF NOT EXISTS edit_actions JSONB;
-  `);
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id TEXT PRIMARY KEY,
-      doc_name TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      edit_actions JSONB,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    );
-  `);
+  const schema = readFileSync(new URL("./schema.sql", import.meta.url), "utf8");
+  await pool.query(schema);
   console.log("[db] PostgreSQL tables initialized");
 }
 
