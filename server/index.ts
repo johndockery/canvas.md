@@ -99,13 +99,13 @@ async function main() {
 
     (async () => {
       try {
-        // GET /api/docs — list all documents
-        if (path === "/api/docs" && req.method === "GET") {
+        // GET /api/canvas/docs — list all documents
+        if (path === "/api/canvas/docs" && req.method === "GET") {
           return json({ docs: await listDocs() });
         }
 
-        // POST /api/docs — create a new document
-        if (path === "/api/docs" && req.method === "POST") {
+        // POST /api/canvas/docs — create a new document
+        if (path === "/api/canvas/docs" && req.method === "POST") {
           const body = await readBody();
           const name = (body.name as string) || crypto.randomUUID();
           const title = (body.title as string) || "Untitled";
@@ -114,8 +114,8 @@ async function main() {
           return json({ name, title }, 201);
         }
 
-        // Document routes: /api/docs/:id
-        const docMatch = path.match(/^\/api\/docs\/([^/]+)$/);
+        // Document routes: /api/canvas/docs/:id
+        const docMatch = path.match(/^\/api\/canvas\/docs\/([^/]+)$/);
         if (docMatch) {
           const docName = docMatch[1];
 
@@ -158,8 +158,8 @@ async function main() {
           }
         }
 
-        // Comments: /api/docs/:id/comments
-        const commentMatch = path.match(/^\/api\/docs\/([^/]+)\/comments$/);
+        // Comments: /api/canvas/docs/:id/comments
+        const commentMatch = path.match(/^\/api\/canvas\/docs\/([^/]+)\/comments$/);
         if (commentMatch) {
           const docName = commentMatch[1];
 
@@ -186,8 +186,8 @@ async function main() {
           }
         }
 
-        // Chat messages: /api/docs/:id/chat
-        const chatMatch = path.match(/^\/api\/docs\/([^/]+)\/chat$/);
+        // Chat messages: /api/canvas/docs/:id/chat
+        const chatMatch = path.match(/^\/api\/canvas\/docs\/([^/]+)\/chat$/);
         if (chatMatch) {
           const docName = chatMatch[1];
 
